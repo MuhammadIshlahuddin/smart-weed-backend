@@ -111,21 +111,21 @@
         </div>
       </div>
 
-      <!-- Upload Drag & Drop Box -->
-      <div class="bg-white border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:border-emerald-500 transition">
-        <div class="max-w-md mx-auto space-y-3">
-          <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+      <!-- Upload Drag & Drop Box (Seluruh kotak dapat diklik) -->
+      <div id="drop-zone" onclick="document.getElementById('csv-file-input').click()" class="bg-white border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:border-emerald-500 hover:bg-emerald-50/30 cursor-pointer transition select-none group">
+        <div class="max-w-md mx-auto space-y-3 pointer-events-none">
+          <div class="w-12 h-12 bg-emerald-50 group-hover:bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto transition">
             <i data-lucide="upload-cloud" class="w-6 h-6"></i>
           </div>
           <div>
-            <label for="csv-file-input" class="text-sm font-semibold text-emerald-700 hover:text-emerald-800 cursor-pointer">
-              Klik untuk mengunggah file CSV
-            </label>
+            <span class="text-sm font-semibold text-emerald-700 group-hover:text-emerald-800">
+              Klik di mana saja pada kotak ini untuk mengunggah file
+            </span>
             <span class="text-sm text-slate-500"> atau seret file ke sini</span>
           </div>
-          <p class="text-xs text-slate-400">Mendukung format .csv dengan kolom latitude, longitude, persentase_gulma.</p>
-          <input id="csv-file-input" type="file" accept=".csv" class="hidden" onchange="handleFileUpload(event)">
+          <p class="text-xs text-slate-400">Mendukung format .csv atau .xlsx dengan kolom latitude, longitude, persentase_gulma.</p>
         </div>
+        <input id="csv-file-input" type="file" accept=".csv, .xlsx, .xls" class="hidden" onchange="handleFileUpload(event)">
       </div>
 
       <!-- Inventory Table -->
@@ -390,8 +390,15 @@
       }
     }
 
-    async function handleFileUpload(event) {
+    function handleFileUpload(event) {
       const file = event.target.files[0];
+      if (file) {
+        uploadFile(file);
+      }
+      event.target.value = '';
+    }
+
+    async function uploadFile(file) {
       if (!file) return;
 
       appendLog(`[INFO] Mengunggah file dataset: ${file.name}...`);
@@ -438,7 +445,7 @@
         alert(`Dataset ${data.filename} berhasil diunggah! ${data.valid_records} titik gulma siap dianalisis.`);
       } catch (err) {
         appendLog(`[ERROR] Gagal unggah file: ${err.message}`);
-        alert(`Gagal upload CSV: ${err.message}`);
+        alert(`Gagal upload CSV/Excel: ${err.message}`);
       }
     }
 
@@ -665,9 +672,36 @@
       });
     }
 
-    // Auto load initial data
+    // Auto load initial data & Drag-and-Drop listener
     window.addEventListener('DOMContentLoaded', () => {
       initChart();
+
+      const dropZone = document.getElementById('drop-zone');
+      if (dropZone) {
+        ['dragenter', 'dragover'].forEach(eventName => {
+          dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.classList.add('border-emerald-500', 'bg-emerald-50/50');
+          }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+          dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.classList.remove('border-emerald-500', 'bg-emerald-50/50');
+          }, false);
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+          const dt = e.dataTransfer;
+          const files = dt.files;
+          if (files && files.length > 0) {
+            uploadFile(files[0]);
+          }
+        }, false);
+      }
     });
   </script>
 </body>
