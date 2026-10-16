@@ -11,7 +11,46 @@ from app.db.session import get_db
 from app.models.data_gulma import DataGulma
 from app.schemas.weed_schema import WeedPointCreate, WeedPointResponse, DatasetUploadSummary
 
+import os
+
 router = APIRouter()
+
+@router.post("/load-sample", response_model=DatasetUploadSummary, status_code=status.HTTP_200_OK)
+def load_sample_dataset(db: Session = Depends(get_db)):
+    """
+    Memuat dataset bawaan 225 titik koordinat sesuai proposal Bab 3.
+    """
+    csv_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "data", "sample_weeds_225.csv")
+    if not os.path.exists(csv_path):
+        raise HTTPException(status_code=404, detail="File sample_weeds_225.csv tidak ditemukan di folder data/")
+
+    df = pd.read_csv(csv_path)
+    batch_id = "default"
+
+    # Bersihkan batch_id lama jika ada
+    db.query(DataGulma).filter(DataGulma.batch_id == batch_id).delete()
+
+    records = []
+    today = date.today()
+    for _, row in df.iterrows():
+        records.append(DataGulma(
+            batch_id=batch_id,
+            latitude=float(row["latitude"]),
+            longitude=float(row["longitude"]),
+            persentase_gulma=float(row["persentase_gulma"]),
+            tanggal_observasi=today
+        ))
+    db.add_all(records)
+    db.commit()
+
+    return {
+        "batch_id": batch_id,
+        "filename": "sample_weeds_225.csv",
+        "total_records": len(records),
+        "valid_records": len(records),
+        "invalid_records": 0,
+        "message": f"Dataset proposal ({len(records)} titik gulma) berhasil dimuat ke sistem."
+    }
 
 @router.post("/upload-csv", response_model=DatasetUploadSummary, status_code=status.HTTP_201_CREATED)
 async def upload_weed_dataset(

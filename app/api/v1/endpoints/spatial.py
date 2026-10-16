@@ -32,10 +32,7 @@ def get_spatial_geojson(
     )
 
     if not cluster_records:
-        raise HTTPException(
-            status_code=404, 
-            detail="Hasil clustering untuk batch ini belum tersedia. Jalankan clustering terlebih dahulu."
-        )
+        return {"type": "FeatureCollection", "features": []}
 
     # Ambil zona summaries
     zona_records = db.query(ZonaGulma).filter(ZonaGulma.batch_id == batch_filter).all()
@@ -87,7 +84,7 @@ def get_zone_summary_table(
     batch_filter = batch_id or "default"
     zonas = db.query(ZonaGulma).filter(ZonaGulma.batch_id == batch_filter).all()
     if not zonas:
-        raise HTTPException(status_code=404, detail="Data zona belum ditemukan.")
+        return []
 
     # Ambil koordinat centroid dari hasil_cluster
     results = []

@@ -35,6 +35,8 @@ app.add_middleware(
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
+from fastapi.responses import FileResponse, Response
+
 # Mount folder static untuk Web Dashboard
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):
@@ -43,6 +45,10 @@ if os.path.exists(static_dir):
     @app.get("/", tags=["Dashboard UI"])
     def serve_dashboard():
         return FileResponse(os.path.join(static_dir, "index.html"))
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return Response(status_code=204)
 
 @app.get("/health", tags=["Health Check"])
 def health_check():

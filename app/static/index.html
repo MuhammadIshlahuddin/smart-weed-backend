@@ -390,20 +390,110 @@
       }
     }
 
-    async function loadSample225() {
-      appendLog("[INFO] Mengunggah dan memverifikasi dataset proposal 225 titik...");
+    async function handleFileUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      appendLog(`[INFO] Mengunggah file dataset: ${file.name}...`);
+      const formData = new FormData();
+      formData.append("file", file);
+
       try {
-        const res = await fetch('/api/v1/clustering/execute', {
+        const res = await fetch('/api/v1/weeds/upload-csv', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.detail || "Gagal mengunggah berkas");
+        }
+
+        const data = await res.json();
+        appendLog(`[SUCCESS] File ${data.filename} berhasil diunggah (${data.valid_records} baris valid).`);
+        document.getElementById('stat-points').innerText = data.valid_records;
+
+        // Tambah ke tabel inventaris
+        const tbody = document.getElementById('dataset-table-body');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="px-4 py-3 font-semibold text-slate-900 flex items-center space-x-2">
+            <i data-lucide="file-text" class="w-4 h-4 text-emerald-600"></i>
+            <span>${data.filename}</span>
+          </td>
+          <td class="px-4 py-3">${data.valid_records} Titik Koordinat</td>
+          <td class="px-4 py-3 text-slate-500">${new Date().toLocaleDateString('id-ID')}</td>
+          <td class="px-4 py-3">
+            <span class="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-bold">Siap Clustering</span>
+          </td>
+          <td class="px-4 py-3 text-right">
+            <button onclick="switchTab('clustering')" class="text-emerald-600 hover:text-emerald-800 font-semibold text-xs">
+              Jalankan Analisis &rarr;
+            </button>
+          </td>
+        `;
+        tbody.prepend(tr);
+        lucide.createIcons();
+
+        alert(`Dataset ${data.filename} berhasil diunggah! ${data.valid_records} titik gulma siap dianalisis.`);
+      } catch (err) {
+        appendLog(`[ERROR] Gagal unggah file: ${err.message}`);
+        alert(`Gagal upload CSV: ${err.message}`);
+      }
+    }
+
+    async function loadSample225() {
+      appendLog("[INFO] Memuat dataset proposal (sample_weeds_225.csv)...");
+      try {
+        // 1. Simpan dataset sample ke database
+        const uploadRes = await fetch('/api/v1/weeds/load-sample', { method: 'POST' });
+        const uploadData = await uploadRes.json();
+        appendLog(`[SUCCESS] ${uploadData.message}`);
+
+        // 2. Eksekusi clustering K-Means Scratch langsung
+        const clusterRes = await fetch('/api/v1/clustering/execute', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({k: 3, engine: 'scratch', max_iter: 300, tolerance: 1e-6})
         });
-        const data = await res.json();
-        alert("Dataset 225 titik berhasil dimuat dan terklasterisasi!");
+        const clusterData = await clusterRes.json();
+        appendLog(`[SUCCESS] K-Means K=3 selesai dalam ${clusterData.execution_time_ms.toFixed(2)} ms.`);
+
+        updateTable(clusterData.summaries);
+        initChart(clusterData.summaries);
+
+        alert("Dataset Proposal (225 Titik) berhasil dimuat dan terklasterisasi!");
         switchTab('clustering');
       } catch (err) {
+        appendLog("[ERROR] Gagal memuat dataset: " + err);
         alert("Gagal memuat dataset: " + err);
       }
+    }
+
+    function updateTable(summaries) {
+      const tbody = document.getElementById('zone-table-body');
+      if (!tbody || !summaries) return;
+      tbody.innerHTML = '';
+      const dominants = ['Amaranthus retroflexus', 'Eleusine indica', 'Cyperus rotundus'];
+
+      summaries.forEach((s, i) => {
+        const tr = document.createElement('tr');
+        const badgeColor = s.zone === 'Tinggi' ? 'bg-red-100 text-red-800' : (s.zone === 'Sedang' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800');
+        const coords = s.centroid ? `${s.centroid.latitude.toFixed(6)}, ${s.centroid.longitude.toFixed(6)}` : '-';
+
+        tr.innerHTML = `
+          <td class="px-4 py-3 font-bold">SEC-0${s.cluster}</td>
+          <td class="px-4 py-3 font-mono text-[11px]">${coords}</td>
+          <td class="px-4 py-3 italic">${dominants[i % dominants.length]}</td>
+          <td class="px-4 py-3">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${badgeColor}">
+              ${s.coverage}% (${s.zone})
+            </span>
+          </td>
+          <td class="px-4 py-3">${s.recommendation}</td>
+        `;
+        tbody.appendChild(tr);
+      });
     }
 
     async function runClustering() {
@@ -511,7 +601,11 @@
             }
           }).addTo(map);
 
-          map.fitBounds(geojsonLayer.getBounds(), { padding: [20, 20] });
+          if (geoData.features && geoData.features.length > 0) {
+            try {
+              map.fitBounds(geojsonLayer.getBounds(), { padding: [20, 20] });
+            } catch(e) {}
+          }
         })
         .catch(err => console.log("Belum ada data GeoJSON:", err));
 
