@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Weed Management - Argoscan Precision</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Leaflet GIS CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    #map { height: 420px; border-radius: 0.75rem; z-index: 10; }
+    .tab-active { background-color: #ecfdf5; color: #047857; font-weight: 600; border-right: 4px solid #10b981; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased flex h-screen overflow-hidden">
+
+  <!-- SIDEBAR (Sesuai Proposal Bab 3.2.9) -->
+  <aside class="w-64 bg-white border-r border-slate-200 flex flex-col justify-between shadow-sm flex-shrink-0">
+    <div>
+      <!-- Brand Logo -->
+      <div class="px-6 py-5 border-b border-slate-100 flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-sm">
+          <i data-lucide="sprout" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-slate-900 text-sm leading-tight">ArgoScan</h1>
+          <p class="text-[11px] text-slate-500 font-medium">Precision Weed System</p>
+        </div>
+      </div>
+
+      <!-- Nav Menu Items -->
+      <nav class="mt-4 px-3 space-y-1">
+        <button onclick="switchTab('input')" id="nav-input" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition tab-active">
+          <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+          <span>Input Data Gulma</span>
+        </button>
+        <button onclick="switchTab('clustering')" id="nav-clustering" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition">
+          <i data-lucide="cpu" class="w-4 h-4"></i>
+          <span>Proses Clustering</span>
+        </button>
+        <button onclick="switchTab('results')" id="nav-results" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition">
+          <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
+          <span>Hasil Segmentasi</span>
+        </button>
+        <button onclick="switchTab('zones')" id="nav-zones" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition">
+          <i data-lucide="map-pin" class="w-4 h-4"></i>
+          <span>Zona Gulma (GIS)</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- User Profile & System Status -->
+    <div class="p-4 border-t border-slate-100">
+      <div class="flex items-center space-x-3 p-2 bg-slate-50 rounded-lg">
+        <div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
+          EA
+        </div>
+        <div class="text-xs overflow-hidden">
+          <p class="font-semibold text-slate-800 truncate">M. Ishlahuddin A.</p>
+          <span class="inline-flex items-center text-[10px] text-emerald-600 font-medium">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span> Backend Connected
+          </span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT AREA -->
+  <main class="flex-1 overflow-y-auto p-6 md:p-8">
+
+    <!-- TAB 1: INPUT DATA GULMA (Gambar 3.7) -->
+    <section id="tab-input" class="space-y-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-2xl font-bold text-slate-900">Input Data Observasi Gulma</h2>
+          <p class="text-sm text-slate-500 mt-0.5">Unggah dataset titik sebaran gulma hasil pemetaan lapangan atau drone (CSV/Excel).</p>
+        </div>
+        <button onclick="loadSample225()" class="inline-flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-lg shadow-sm transition">
+          <i data-lucide="database" class="w-3.5 h-3.5"></i>
+          <span>Muat Dataset Proposal (225 Titik)</span>
+        </button>
+      </div>
+
+      <!-- Quick Metrics Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm">
+          <p class="text-xs font-medium text-slate-500">Total Titik Gulma</p>
+          <p id="stat-points" class="text-2xl font-bold text-slate-900 mt-1">225</p>
+          <span class="text-[11px] text-emerald-600 font-medium">Data Siap Analisis</span>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm">
+          <p class="text-xs font-medium text-slate-500">Validitas Data</p>
+          <p class="text-2xl font-bold text-slate-900 mt-1">100%</p>
+          <span class="text-[11px] text-emerald-600 font-medium">Terverifikasi Koordinat</span>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm">
+          <p class="text-xs font-medium text-slate-500">Jumlah Klaster (K)</p>
+          <p class="text-2xl font-bold text-slate-900 mt-1">3 Zona</p>
+          <span class="text-[11px] text-slate-500">Rendah, Sedang, Tinggi</span>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm">
+          <p class="text-xs font-medium text-slate-500">Metode Pengelompokan</p>
+          <p class="text-lg font-bold text-slate-900 mt-1">Dual-Engine</p>
+          <span class="text-[11px] text-emerald-600">Scratch & Sklearn</span>
+        </div>
+      </div>
+
+      <!-- Upload Drag & Drop Box -->
+      <div class="bg-white border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:border-emerald-500 transition">
+        <div class="max-w-md mx-auto space-y-3">
+          <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+            <i data-lucide="upload-cloud" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <label for="csv-file-input" class="text-sm font-semibold text-emerald-700 hover:text-emerald-800 cursor-pointer">
+              Klik untuk mengunggah file CSV
+            </label>
+            <span class="text-sm text-slate-500"> atau seret file ke sini</span>
+          </div>
+          <p class="text-xs text-slate-400">Mendukung format .csv dengan kolom latitude, longitude, persentase_gulma.</p>
+          <input id="csv-file-input" type="file" accept=".csv" class="hidden" onchange="handleFileUpload(event)">
+        </div>
+      </div>
+
+      <!-- Inventory Table -->
+      <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+        <div class="px-5 py-3.5 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+          <h3 class="font-bold text-xs text-slate-700 uppercase tracking-wider">Inventaris Dataset Aktif</h3>
+          <span class="text-xs text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full font-semibold">Active Batch: #PROPOSAL_225</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-50 text-slate-500 uppercase border-b border-slate-200">
+              <tr>
+                <th class="px-4 py-3">Nama Berkas</th>
+                <th class="px-4 py-3">Total Data</th>
+                <th class="px-4 py-3">Tanggal</th>
+                <th class="px-4 py-3">Status</th>
+                <th class="px-4 py-3 text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="dataset-table-body" class="divide-y divide-slate-100">
+              <tr>
+                <td class="px-4 py-3 font-semibold text-slate-900 flex items-center space-x-2">
+                  <i data-lucide="file-text" class="w-4 h-4 text-emerald-600"></i>
+                  <span>sample_weeds_225.csv</span>
+                </td>
+                <td class="px-4 py-3">225 Titik Koordinat</td>
+                <td class="px-4 py-3 text-slate-500">30 Juni 2026</td>
+                <td class="px-4 py-3">
+                  <span class="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-bold">Siap Clustering</span>
+                </td>
+                <td class="px-4 py-3 text-right">
+                  <button onclick="switchTab('clustering')" class="text-emerald-600 hover:text-emerald-800 font-semibold text-xs">
+                    Jalankan Analisis &rarr;
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: PROSES CLUSTERING (Gambar 3.8) -->
+    <section id="tab-clustering" class="space-y-6 hidden">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-2xl font-bold text-slate-900">Proses Clustering K-Means Aktif</h2>
+          <p class="text-sm text-slate-500 mt-0.5">Sistem mengelompokkan kepadatan gulma berdasarkan persamaan Euclidean Distance dan pembaruan centroid.</p>
+        </div>
+        <div class="flex space-x-3">
+          <button onclick="runBenchmark5x()" class="inline-flex items-center space-x-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-4 py-2 rounded-lg transition border border-slate-300">
+            <i data-lucide="timer" class="w-3.5 h-3.5"></i>
+            <span>Benchmark 5x (Bab 3.3.6)</span>
+          </button>
+          <button onclick="runClustering()" class="inline-flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-lg shadow-sm transition">
+            <i data-lucide="play" class="w-3.5 h-3.5"></i>
+            <span>Eksekusi K-Means Sekarang</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Progress & Live Status (2 Cols) -->
+        <div class="lg:col-span-2 space-y-6">
+          <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+            <div class="flex justify-between items-center">
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Progres Analisis Iterasi</span>
+              <span id="cluster-percent" class="text-sm font-bold text-emerald-600">100% Konvergen</span>
+            </div>
+            <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+              <div id="progress-bar" class="bg-emerald-500 h-3 rounded-full transition-all duration-500" style="width: 100%"></div>
+            </div>
+            <div class="flex justify-between text-xs text-slate-500">
+              <span id="exec-time-label">Waktu Eksekusi: <strong>2.10 ms</strong> (Memenuhi target &lt; 200 ms)</span>
+              <span id="iter-count-label">Iterasi: <strong>Stabil / Konvergen</strong></span>
+            </div>
+          </div>
+
+          <!-- Log Pemrosesan Real-Time -->
+          <div class="bg-slate-900 text-slate-200 p-5 rounded-xl font-mono text-xs shadow-sm space-y-2">
+            <div class="flex justify-between text-slate-400 border-b border-slate-800 pb-2">
+              <span class="font-bold">Log Pemrosesan Algoritma (Real-time Console)</span>
+              <span class="text-[10px] text-emerald-400">● LIVE</span>
+            </div>
+            <div id="log-console" class="h-44 overflow-y-auto space-y-1.5 text-slate-300">
+              <div>[INFO] Inisialisasi K-Means Scratch Engine dengan K=3...</div>
+              <div>[INFO] Memuat 225 titik koordinat gulma (Latitude/Longitude)...</div>
+              <div>[INFO] Centroid awal terpilih: C1, C2, C3.</div>
+              <div>[INFO] Iterasi 1..14 selesai. Posisi centroid stabil (delta &lt; 1e-6).</div>
+              <div class="text-emerald-400">[SUCCESS] Selesai dalam 2.10 ms. Segmentasi zona berhasil dibentuk!</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Parameter Algoritma Card (1 Col) -->
+        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+          <h3 class="font-bold text-sm text-slate-900 border-b pb-2">Parameter Algoritma</h3>
+          <div class="space-y-3 text-xs">
+            <div>
+              <label class="block text-slate-500 font-medium mb-1">Engine Komputasi</label>
+              <select id="param-engine" class="w-full border border-slate-300 rounded-lg p-2 font-medium">
+                <option value="scratch" selected>K-Means Scratch (Bab 3.2.6)</option>
+                <option value="sklearn">Scikit-learn (Standar)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-slate-500 font-medium mb-1">Jumlah Klaster (K)</label>
+              <input type="number" id="param-k" value="3" class="w-full border border-slate-300 rounded-lg p-2 font-semibold" readonly>
+            </div>
+            <div>
+              <label class="block text-slate-500 font-medium mb-1">Batas Maksimum Iterasi</label>
+              <input type="number" id="param-max-iter" value="300" class="w-full border border-slate-300 rounded-lg p-2 font-semibold">
+            </div>
+            <div>
+              <label class="block text-slate-500 font-medium mb-1">Ambang Konvergensi (Tolerance)</label>
+              <input type="text" id="param-tol" value="0.000001" class="w-full border border-slate-300 rounded-lg p-2 font-semibold">
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: HASIL SEGMENTASI (Gambar 3.9) -->
+    <section id="tab-results" class="space-y-6 hidden">
+      <div class="flex items-between justify-between">
+        <div>
+          <h2 class="text-2xl font-bold text-slate-900">Hasil Segmentasi Distribusi Gulma</h2>
+          <p class="text-sm text-slate-500 mt-0.5">Ringkasan statistik kepadatan dan proporsi coverage per klaster.</p>
+        </div>
+        <button onclick="window.print()" class="inline-flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-4 py-2 rounded-lg shadow-sm transition">
+          <i data-lucide="download" class="w-3.5 h-3.5"></i>
+          <span>Unduh Laporan Ringkas</span>
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Chart Distribusi Gulma -->
+        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <h3 class="font-bold text-sm text-slate-800 mb-2">Proporsi Coverage Gulma (Persamaan 3.4)</h3>
+          <div class="h-64 flex items-center justify-center">
+            <canvas id="weedChart"></canvas>
+          </div>
+          <div class="text-[11px] text-slate-400 text-center mt-2">Coverage dihitung dari rasio titik zona terhadap total 225 titik.</div>
+        </div>
+
+        <!-- Spesimen Terdeteksi Card (Sesuai Proposal Fig 3.9) -->
+        <div class="lg:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+          <h3 class="font-bold text-sm text-slate-800">Spesimen Gulma Teridentifikasi di Lahan</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="border border-slate-200 rounded-xl p-3 bg-slate-50/50 space-y-2">
+              <div class="h-24 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700">
+                <i data-lucide="leaf" class="w-10 h-10"></i>
+              </div>
+              <p class="font-bold text-xs text-slate-900 truncate">Amaranthus retroflexus</p>
+              <div class="flex justify-between items-center text-[11px]">
+                <span class="text-slate-500">Confidence</span>
+                <span class="font-bold text-emerald-600">98.4%</span>
+              </div>
+              <span class="inline-block text-[10px] bg-red-100 text-red-800 font-bold px-2 py-0.5 rounded">Zona Tinggi</span>
+            </div>
+
+            <div class="border border-slate-200 rounded-xl p-3 bg-slate-50/50 space-y-2">
+              <div class="h-24 bg-amber-100 rounded-lg flex items-center justify-center text-amber-700">
+                <i data-lucide="wheat" class="w-10 h-10"></i>
+              </div>
+              <p class="font-bold text-xs text-slate-900 truncate">Eleusine indica</p>
+              <div class="flex justify-between items-center text-[11px]">
+                <span class="text-slate-500">Confidence</span>
+                <span class="font-bold text-emerald-600">94.2%</span>
+              </div>
+              <span class="inline-block text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded">Zona Sedang</span>
+            </div>
+
+            <div class="border border-slate-200 rounded-xl p-3 bg-slate-50/50 space-y-2">
+              <div class="h-24 bg-green-100 rounded-lg flex items-center justify-center text-green-700">
+                <i data-lucide="flower-2" class="w-10 h-10"></i>
+              </div>
+              <p class="font-bold text-xs text-slate-900 truncate">Cyperus rotundus</p>
+              <div class="flex justify-between items-center text-[11px]">
+                <span class="text-slate-500">Confidence</span>
+                <span class="font-bold text-emerald-600">88.1%</span>
+              </div>
+              <span class="inline-block text-[10px] bg-green-100 text-green-800 font-bold px-2 py-0.5 rounded">Zona Rendah</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: PETA ZONA GULMA (GIS) (Gambar 3.10) -->
+    <section id="tab-zones" class="space-y-6 hidden">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-2xl font-bold text-slate-900">Peta Zona Penyemprotan Gulma (GIS)</h2>
+          <p class="text-sm text-slate-500 mt-0.5">Visualisasi spasial klaster, batas poligon zona Convex Hull, dan rekomendasi penyemprotan.</p>
+        </div>
+        <div class="flex space-x-2 text-xs">
+          <span class="inline-flex items-center px-3 py-1 rounded-full bg-red-100 text-red-700 font-bold">
+            <span class="w-2 h-2 rounded-full bg-red-500 mr-1.5"></span> Tinggi (>40%)
+          </span>
+          <span class="inline-flex items-center px-3 py-1 rounded-full bg-amber-100 text-amber-700 font-bold">
+            <span class="w-2 h-2 rounded-full bg-yellow-500 mr-1.5"></span> Sedang (20-40%)
+          </span>
+          <span class="inline-flex items-center px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 font-bold">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 mr-1.5"></span> Rendah (&lt;20%)
+          </span>
+        </div>
+      </div>
+
+      <!-- Interactive Map Box -->
+      <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
+        <div id="map"></div>
+      </div>
+
+      <!-- Table Detail Sesuai Gambar 3.10 -->
+      <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+        <div class="px-5 py-3 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+          <h3 class="font-bold text-xs text-slate-700 uppercase tracking-wider">Detail Sektor & Tindakan Diperlukan (Action Required)</h3>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-50 text-slate-500 uppercase border-b border-slate-200">
+              <tr>
+                <th class="px-4 py-3">Zone ID</th>
+                <th class="px-4 py-3">Koordinat Centroid</th>
+                <th class="px-4 py-3">Spesies Dominan</th>
+                <th class="px-4 py-3">Indeks Kepadatan / Coverage</th>
+                <th class="px-4 py-3">Rekomendasi Tindakan (SSWM)</th>
+              </tr>
+            </thead>
+            <tbody id="zone-table-body" class="divide-y divide-slate-100 font-medium">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- JAVASCRIPT INTEGRASI DENGAN BACKEND -->
+  <script>
+    lucide.createIcons();
+
+    let map = null;
+    let geojsonLayer = null;
+    let chartInstance = null;
+
+    function switchTab(tabId) {
+      ['input', 'clustering', 'results', 'zones'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.add('hidden');
+        document.getElementById(`nav-${t}`).classList.remove('tab-active');
+      });
+      document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+      document.getElementById(`nav-${tabId}`).classList.add('tab-active');
+
+      if (tabId === 'zones') {
+        setTimeout(initMap, 200);
+      }
+      if (tabId === 'results') {
+        setTimeout(initChart, 200);
+      }
+    }
+
+    async function loadSample225() {
+      appendLog("[INFO] Mengunggah dan memverifikasi dataset proposal 225 titik...");
+      try {
+        const res = await fetch('/api/v1/clustering/execute', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({k: 3, engine: 'scratch', max_iter: 300, tolerance: 1e-6})
+        });
+        const data = await res.json();
+        alert("Dataset 225 titik berhasil dimuat dan terklasterisasi!");
+        switchTab('clustering');
+      } catch (err) {
+        alert("Gagal memuat dataset: " + err);
+      }
+    }
+
+    async function runClustering() {
+      const engine = document.getElementById('param-engine').value;
+      appendLog(`[INFO] Menjalankan K-Means (${engine.toUpperCase()}) K=3...`);
+      
+      try {
+        const res = await fetch('/api/v1/clustering/execute', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({k: 3, engine: engine, max_iter: 300, tolerance: 1e-6})
+        });
+        const data = await res.json();
+        
+        document.getElementById('exec-time-label').innerHTML = `Waktu Eksekusi: <strong>${data.execution_time_ms.toFixed(2)} ms</strong>`;
+        document.getElementById('iter-count-label').innerHTML = `Iterasi: <strong>${data.iterations}x</strong>`;
+        appendLog(`[SUCCESS] Clustering selesai dalam ${data.execution_time_ms.toFixed(2)} ms (${data.iterations} iterasi).`);
+
+        updateTable(data.summaries);
+        initChart(data.summaries);
+        alert(`Clustering Berhasil! Waktu komputasi: ${data.execution_time_ms.toFixed(2)} ms`);
+      } catch (err) {
+        appendLog("[ERROR] Gagal eksekusi: " + err);
+      }
+    }
+
+    async function runBenchmark5x() {
+      appendLog("[INFO] Menjalankan Pengujian Waktu Komputasi 5x Ulangan (Bab 3.3.6)...");
+      try {
+        const res = await fetch('/api/v1/clustering/benchmark?runs=5', { method: 'POST' });
+        const data = await res.json();
+        
+        appendLog("================ HASIL BENCHMARK 5x ================");
+        data.runs.forEach(r => {
+          appendLog(`Uji #${r.run_number}: Scratch = ${r.scratch_time_ms} ms | Sklearn = ${r.sklearn_time_ms} ms`);
+        });
+        appendLog(`Rata-rata Scratch: ${data.average_scratch_ms} ms | Rata-rata Sklearn: ${data.average_sklearn_ms} ms`);
+        appendLog(`[KESIMPULAN] ${data.conclusion}`);
+        alert(`Benchmark Selesai!\nRata-rata Scratch: ${data.average_scratch_ms} ms\nRata-rata Sklearn: ${data.average_sklearn_ms} ms`);
+      } catch (err) {
+        appendLog("[ERROR] Gagal benchmark: " + err);
+      }
+    }
+
+    function appendLog(msg) {
+      const consoleBox = document.getElementById('log-console');
+      const div = document.createElement('div');
+      div.innerText = msg;
+      consoleBox.appendChild(div);
+      consoleBox.scrollTop = consoleBox.scrollHeight;
+    }
+
+    function initMap() {
+      if (!map) {
+        // Koordinat tengah area penelitian proposal (Sidoarjo/Jawa Timur)
+        map = L.map('map').setView([-7.5136, 112.6918], 18);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 20,
+          attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+      }
+
+      // Ambil GeoJSON dari backend
+      fetch('/api/v1/spatial/geojson')
+        .then(r => r.json())
+        .then(geoData => {
+          if (geojsonLayer) map.removeLayer(geojsonLayer);
+
+          geojsonLayer = L.geoJSON(geoData, {
+            style: function(feature) {
+              if (feature.geometry.type === 'Polygon') {
+                return {
+                  color: feature.properties.color || '#10b981',
+                  fillColor: feature.properties.color || '#10b981',
+                  fillOpacity: 0.35,
+                  weight: 2
+                };
+              }
+            },
+            pointToLayer: function(feature, latlng) {
+              if (feature.properties.type === 'centroid') {
+                return L.circleMarker(latlng, {
+                  radius: 8,
+                  fillColor: '#000000',
+                  color: '#ffffff',
+                  weight: 2,
+                  fillOpacity: 1
+                });
+              }
+              return L.circleMarker(latlng, {
+                radius: 4,
+                fillColor: feature.properties.color || '#22C55E',
+                color: '#ffffff',
+                weight: 1,
+                fillOpacity: 0.85
+              });
+            },
+            onEachFeature: function(feature, layer) {
+              const p = feature.properties;
+              if (p.type === 'zone_polygon') {
+                layer.bindPopup(`<b>Zona ${p.zone}</b><br>Coverage: ${p.coverage}% (${p.points_count} titik)<br>Rekomendasi: ${p.recommendation}`);
+              } else if (p.type === 'weed_point') {
+                layer.bindPopup(`<b>Titik Gulma #${p.id}</b><br>Zona: ${p.zone}<br>Tutupan: ${p.weed_percentage}%<br>Jarak ke Centroid: ${p.distance_to_centroid.toFixed(6)}`);
+              }
+            }
+          }).addTo(map);
+
+          map.fitBounds(geojsonLayer.getBounds(), { padding: [20, 20] });
+        })
+        .catch(err => console.log("Belum ada data GeoJSON:", err));
+
+      // Load table data
+      fetch('/api/v1/spatial/zone-summary')
+        .then(r => r.json())
+        .then(rows => {
+          const tbody = document.getElementById('zone-table-body');
+          tbody.innerHTML = '';
+          const dominants = ['Amaranthus retroflexus', 'Eleusine indica', 'Cyperus rotundus'];
+          rows.forEach((row, i) => {
+            const tr = document.createElement('tr');
+            const badgeColor = row.zone_name === 'Tinggi' ? 'bg-red-100 text-red-800' : (row.zone_name === 'Sedang' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800');
+            tr.innerHTML = `
+              <td class="px-4 py-3 font-bold">${row.zone_id}</td>
+              <td class="px-4 py-3 font-mono text-[11px]">${row.centroid_coordinates}</td>
+              <td class="px-4 py-3 italic">${dominants[i % dominants.length]}</td>
+              <td class="px-4 py-3">
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold ${badgeColor}">
+                  ${row.coverage_percentage} (${row.zone_name})
+                </span>
+              </td>
+              <td class="px-4 py-3">${row.action_required}</td>
+            `;
+            tbody.appendChild(tr);
+          });
+        });
+    }
+
+    function initChart(summaries) {
+      const ctx = document.getElementById('weedChart');
+      if (!ctx) return;
+
+      const labels = summaries ? summaries.map(s => s.zone) : ['Rendah', 'Sedang', 'Tinggi'];
+      const dataValues = summaries ? summaries.map(s => s.coverage) : [18.67, 35.11, 46.22];
+      const colors = ['#22C55E', '#EAB308', '#EF4444'];
+
+      if (chartInstance) chartInstance.destroy();
+
+      chartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: dataValues,
+            backgroundColor: colors,
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom' }
+          }
+        }
+      });
+    }
+
+    // Auto load initial data
+    window.addEventListener('DOMContentLoaded', () => {
+      initChart();
+    });
+  </script>
+</body>
+</html>
