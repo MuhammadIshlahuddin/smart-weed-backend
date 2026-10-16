@@ -60,3 +60,4 @@ uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ### 3. Akses Dokumentasi Swagger API
 Buka peramban (browser) di alamat:  
 👉 **http://127.0.0.1:8000/docs**
+# smart-weed-backend
