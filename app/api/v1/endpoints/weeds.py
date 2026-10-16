@@ -65,8 +65,12 @@ async def upload_weed_dataset(
     
     contents = await file.read()
     try:
-        if file.filename.endswith(".csv"):
-            df = pd.read_csv(io.BytesIO(contents))
+        lower_name = file.filename.lower()
+        if lower_name.endswith(".csv"):
+            try:
+                df = pd.read_csv(io.BytesIO(contents), sep=None, engine="python", encoding="utf-8-sig")
+            except Exception:
+                df = pd.read_csv(io.BytesIO(contents), encoding="latin1")
         else:
             df = pd.read_excel(io.BytesIO(contents))
     except Exception as e:
