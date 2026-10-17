@@ -59,3 +59,8 @@ def test_full_pipeline_upload_and_clustering():
     assert len(bench_data["runs"]) == 5
     assert bench_data["average_scratch_ms"] > 0
     assert bench_data["average_sklearn_ms"] > 0
+
+    # 6. Test Delete Dataset
+    delete_resp = client.delete(f"/api/v1/weeds/datasets/{batch_id}")
+    assert delete_resp.status_code == 200
+    assert delete_resp.json()["status"] == "success"

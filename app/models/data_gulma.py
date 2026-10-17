@@ -8,6 +8,7 @@ class DataGulma(Base):
     id_gulma = Column(Integer, primary_key=True, index=True, autoincrement=True)
     id_user = Column(Integer, ForeignKey("users.id_user"), nullable=True)
     batch_id = Column(String(50), index=True, nullable=True)
+    filename = Column(String(255), nullable=True)
     latitude = Column(Numeric(10, 7), nullable=False)
     longitude = Column(Numeric(10, 7), nullable=False)
     persentase_gulma = Column(Float, nullable=False)
