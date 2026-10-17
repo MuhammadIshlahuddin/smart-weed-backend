@@ -134,14 +134,8 @@
       <!-- Inventory Table -->
       <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
         <div class="px-5 py-3.5 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-          <div class="flex items-center space-x-2">
-            <h3 class="font-bold text-xs text-slate-700 uppercase tracking-wider">Inventaris Dataset Aktif</h3>
-            <span id="active-batch-badge" class="text-xs text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full font-semibold">Active: Semua Dataset</span>
-          </div>
-          <button onclick="clearAllDatasets()" class="inline-flex items-center space-x-1.5 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 font-semibold px-2.5 py-1 rounded-lg border border-rose-200 transition">
-            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-            <span>Hapus Semua Berkas</span>
-          </button>
+          <h3 class="font-bold text-xs text-slate-700 uppercase tracking-wider">Inventaris Dataset Aktif</h3>
+          <span class="text-xs text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full font-semibold">Active Batch: #PROPOSAL_225</span>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-left text-xs">
@@ -155,7 +149,22 @@
               </tr>
             </thead>
             <tbody id="dataset-table-body" class="divide-y divide-slate-100">
-              <!-- Dimuat secara dinamis oleh JavaScript -->
+              <tr>
+                <td class="px-4 py-3 font-semibold text-slate-900 flex items-center space-x-2">
+                  <i data-lucide="file-text" class="w-4 h-4 text-emerald-600"></i>
+                  <span>sample_weeds_225.csv</span>
+                </td>
+                <td class="px-4 py-3">225 Titik Koordinat</td>
+                <td class="px-4 py-3 text-slate-500">30 Juni 2026</td>
+                <td class="px-4 py-3">
+                  <span class="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-bold">Siap Clustering</span>
+                </td>
+                <td class="px-4 py-3 text-right">
+                  <button onclick="switchTab('clustering')" class="text-emerald-600 hover:text-emerald-800 font-semibold text-xs">
+                    Jalankan Analisis &rarr;
+                  </button>
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -396,129 +405,6 @@
       if (!file) return;
 
       appendLog(`[INFO] Mengunggah file dataset: ${file.name}...`);
-    let currentBatchId = null;
-
-    async function loadDatasetInventory() {
-      const tbody = document.getElementById('dataset-table-body');
-      if (!tbody) return;
-
-      try {
-        const res = await fetch('/api/v1/weeds/datasets');
-        const datasets = await res.json();
-
-        tbody.innerHTML = '';
-        if (!datasets || datasets.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-slate-400">Belum ada dataset yang diunggah. Silakan upload file CSV/Excel di atas.</td></tr>`;
-          document.getElementById('stat-points').innerText = "0";
-          return;
-        }
-
-        let totalPoints = 0;
-        datasets.forEach(item => {
-          totalPoints += item.total_points;
-          const tr = document.createElement('tr');
-          tr.className = "hover:bg-slate-50/80 transition";
-          tr.innerHTML = `
-            <td class="px-4 py-3 font-semibold text-slate-900 flex items-center space-x-2">
-              <i data-lucide="file-text" class="w-4 h-4 text-emerald-600"></i>
-              <span class="truncate max-w-xs" title="${item.filename}">${item.filename}</span>
-            </td>
-            <td class="px-4 py-3 text-slate-700">${item.total_points} Titik Koordinat</td>
-            <td class="px-4 py-3 text-slate-500">${item.tanggal || '-'}</td>
-            <td class="px-4 py-3">
-              <span class="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-bold">Siap Clustering</span>
-            </td>
-            <td class="px-4 py-3 text-right">
-              <div class="flex items-center justify-end space-x-2">
-                <button onclick="analyzeBatch('${item.batch_id}', '${item.filename}')" class="inline-flex items-center space-x-1 text-emerald-600 hover:text-emerald-800 font-semibold text-xs px-2.5 py-1 rounded hover:bg-emerald-50 transition">
-                  <span>Jalankan Analisis</span>
-                  <span>&rarr;</span>
-                </button>
-                <button onclick="deleteDataset('${item.batch_id}', '${item.filename}')" class="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1.5 rounded-lg border border-transparent hover:border-rose-200 transition" title="Hapus Berkas Ini">
-                  <i data-lucide="trash-2" class="w-4 h-4"></i>
-                </button>
-              </div>
-            </td>
-          `;
-          tbody.appendChild(tr);
-        });
-
-        document.getElementById('stat-points').innerText = totalPoints;
-        lucide.createIcons();
-      } catch (err) {
-        console.error("Gagal memuat inventaris dataset:", err);
-      }
-    }
-
-    async function deleteDataset(batchId, filename) {
-      if (!confirm(`Konfirmasi Penghapusan:\nApakah Anda yakin ingin menghapus berkas "${filename}"?\n\nSemua data titik koordinat dan hasil clustering terkait berkas ini akan dihapus.`)) {
-        return;
-      }
-
-      appendLog(`[INFO] Menghapus dataset: ${filename} (Batch: ${batchId})...`);
-      try {
-        const res = await fetch(`/api/v1/weeds/datasets/${batchId}`, {
-          method: 'DELETE'
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.detail || "Gagal menghapus berkas");
-        }
-
-        appendLog(`[SUCCESS] ${data.message}`);
-        if (currentBatchId === batchId) {
-          currentBatchId = null;
-          const badge = document.getElementById('active-batch-badge');
-          if (badge) badge.innerText = "Active: Semua Dataset";
-        }
-        await loadDatasetInventory();
-        alert(`Berkas ${filename} berhasil dihapus dari sistem.`);
-      } catch (err) {
-        appendLog(`[ERROR] Gagal menghapus: ${err.message}`);
-        alert(`Gagal menghapus dataset: ${err.message}`);
-      }
-    }
-
-    async function clearAllDatasets() {
-      if (!confirm("Peringatan Penting:\nApakah Anda yakin ingin menghapus SEMUA dataset yang sudah diunggah?\n\nDatabase data gulma dan hasil zonasi akan dikosongkan.")) {
-        return;
-      }
-
-      appendLog("[INFO] Membersihkan seluruh dataset di sistem...");
-      try {
-        const res = await fetch('/api/v1/weeds/datasets', {
-          method: 'DELETE'
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.detail || "Gagal membersihkan berkas");
-        }
-
-        appendLog(`[SUCCESS] ${data.message}`);
-        currentBatchId = null;
-        const badge = document.getElementById('active-batch-badge');
-        if (badge) badge.innerText = "Active: Semua Dataset";
-
-        await loadDatasetInventory();
-        alert("Seluruh berkas dataset berhasil dibersihkan dari sistem.");
-      } catch (err) {
-        appendLog(`[ERROR] Gagal membersihkan dataset: ${err.message}`);
-        alert(`Gagal membersihkan dataset: ${err.message}`);
-      }
-    }
-
-    function analyzeBatch(batchId, filename) {
-      currentBatchId = batchId;
-      const badge = document.getElementById('active-batch-badge');
-      if (badge) badge.innerText = `Active: ${filename}`;
-      appendLog(`[INFO] Dataset aktif diatur ke: ${filename} (Batch ID: #${batchId})`);
-      switchTab('clustering');
-    }
-
-    async function uploadFile(file) {
-      if (!file) return;
-
-      appendLog(`[INFO] Mengunggah file dataset: ${file.name}...`);
       const formData = new FormData();
       formData.append("file", file);
 
@@ -535,7 +421,29 @@
 
         const data = await res.json();
         appendLog(`[SUCCESS] File ${data.filename} berhasil diunggah (${data.valid_records} baris valid).`);
-        await loadDatasetInventory();
+        document.getElementById('stat-points').innerText = data.valid_records;
+
+        // Tambah ke tabel inventaris
+        const tbody = document.getElementById('dataset-table-body');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="px-4 py-3 font-semibold text-slate-900 flex items-center space-x-2">
+            <i data-lucide="file-text" class="w-4 h-4 text-emerald-600"></i>
+            <span>${data.filename}</span>
+          </td>
+          <td class="px-4 py-3">${data.valid_records} Titik Koordinat</td>
+          <td class="px-4 py-3 text-slate-500">${new Date().toLocaleDateString('id-ID')}</td>
+          <td class="px-4 py-3">
+            <span class="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-bold">Siap Clustering</span>
+          </td>
+          <td class="px-4 py-3 text-right">
+            <button onclick="switchTab('clustering')" class="text-emerald-600 hover:text-emerald-800 font-semibold text-xs">
+              Jalankan Analisis &rarr;
+            </button>
+          </td>
+        `;
+        tbody.prepend(tr);
+        lucide.createIcons();
 
         alert(`Dataset ${data.filename} berhasil diunggah! ${data.valid_records} titik gulma siap dianalisis.`);
       } catch (err) {
@@ -552,14 +460,11 @@
         const uploadData = await uploadRes.json();
         appendLog(`[SUCCESS] ${uploadData.message}`);
 
-        // 2. Refresh inventaris
-        await loadDatasetInventory();
-
-        // 3. Eksekusi clustering K-Means Scratch langsung
+        // 2. Eksekusi clustering K-Means Scratch langsung
         const clusterRes = await fetch('/api/v1/clustering/execute', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({k: 3, engine: 'scratch', max_iter: 300, tolerance: 1e-6, batch_id: 'default'})
+          body: JSON.stringify({k: 3, engine: 'scratch', max_iter: 300, tolerance: 1e-6})
         });
         const clusterData = await clusterRes.json();
         appendLog(`[SUCCESS] K-Means K=3 selesai dalam ${clusterData.execution_time_ms.toFixed(2)} ms.`);
@@ -605,21 +510,11 @@
       const engine = document.getElementById('param-engine').value;
       appendLog(`[INFO] Menjalankan K-Means (${engine.toUpperCase()}) K=3...`);
       
-      const payload = {
-        k: 3, 
-        engine: engine, 
-        max_iter: 300, 
-        tolerance: 1e-6
-      };
-      if (currentBatchId) {
-        payload.batch_id = currentBatchId;
-      }
-
       try {
         const res = await fetch('/api/v1/clustering/execute', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify(payload)
+          body: JSON.stringify({k: 3, engine: engine, max_iter: 300, tolerance: 1e-6})
         });
         const data = await res.json();
         
@@ -672,8 +567,7 @@
       }
 
       // Ambil GeoJSON dari backend
-      const geoUrl = currentBatchId ? `/api/v1/spatial/geojson?batch_id=${currentBatchId}` : '/api/v1/spatial/geojson';
-      fetch(geoUrl)
+      fetch('/api/v1/spatial/geojson')
         .then(r => r.json())
         .then(geoData => {
           if (geojsonLayer) map.removeLayer(geojsonLayer);
@@ -726,8 +620,7 @@
         .catch(err => console.log("Belum ada data GeoJSON:", err));
 
       // Load table data
-      const summaryUrl = currentBatchId ? `/api/v1/spatial/zone-summary?batch_id=${currentBatchId}` : '/api/v1/spatial/zone-summary';
-      fetch(summaryUrl)
+      fetch('/api/v1/spatial/zone-summary')
         .then(r => r.json())
         .then(rows => {
           const tbody = document.getElementById('zone-table-body');
@@ -785,7 +678,6 @@
     // Auto load initial data & Drag-and-Drop listener
     window.addEventListener('DOMContentLoaded', () => {
       initChart();
-      loadDatasetInventory();
 
       const dropZone = document.getElementById('drop-zone');
       if (dropZone) {

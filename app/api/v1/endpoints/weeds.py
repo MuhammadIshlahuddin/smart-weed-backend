@@ -35,7 +35,6 @@ def load_sample_dataset(db: Session = Depends(get_db)):
     for _, row in df.iterrows():
         records.append(DataGulma(
             batch_id=batch_id,
-            filename="sample_weeds_225.csv",
             latitude=float(row["latitude"]),
             longitude=float(row["longitude"]),
             persentase_gulma=float(row["persentase_gulma"]),
@@ -120,7 +119,6 @@ async def upload_weed_dataset(
 
             record = DataGulma(
                 batch_id=batch_id,
-                filename=file.filename,
                 latitude=lat,
                 longitude=lon,
                 persentase_gulma=pct,
@@ -154,66 +152,22 @@ def list_datasets(db: Session = Depends(get_db)):
     query = (
         db.query(
             DataGulma.batch_id,
-            func.max(DataGulma.filename).label("filename"),
             func.count(DataGulma.id_gulma).label("total_points"),
-            func.max(DataGulma.tanggal_observasi).label("tanggal")
+            func.min(DataGulma.tanggal_observasi).label("tanggal")
         )
         .group_by(DataGulma.batch_id)
-        .order_by(DataGulma.id_gulma.desc())
         .all()
     )
 
     results = []
     for item in query:
         batch = item.batch_id if item.batch_id else "default"
-        fname = item.filename or ("sample_weeds_225.csv" if item.total_points == 225 else "Data_Gulma.csv")
         results.append({
             "batch_id": batch,
-            "filename": fname,
             "total_points": item.total_points,
             "tanggal": str(item.tanggal)
         })
     return results
-
-@router.delete("/datasets/{batch_id}")
-def delete_dataset(batch_id: str, db: Session = Depends(get_db)):
-    """
-    Menghapus satu dataset berdasarkan batch_id beserta hasil clustering dan zonasi terkait.
-    """
-    from app.models.hasil_cluster import HasilCluster
-    from app.models.zona_gulma import ZonaGulma
-
-    count = db.query(DataGulma).filter(DataGulma.batch_id == batch_id).count()
-    if count == 0:
-        raise HTTPException(status_code=404, detail="Dataset dengan ID tersebut tidak ditemukan.")
-
-    db.query(HasilCluster).filter(HasilCluster.batch_id == batch_id).delete()
-    db.query(ZonaGulma).filter(ZonaGulma.batch_id == batch_id).delete()
-    db.query(DataGulma).filter(DataGulma.batch_id == batch_id).delete()
-    db.commit()
-
-    return {
-        "status": "success",
-        "message": f"Dataset #{batch_id} ({count} titik) berhasil dihapus."
-    }
-
-@router.delete("/datasets")
-def clear_all_datasets(db: Session = Depends(get_db)):
-    """
-    Menghapus seluruh dataset dan hasil clustering dari sistem.
-    """
-    from app.models.hasil_cluster import HasilCluster
-    from app.models.zona_gulma import ZonaGulma
-
-    db.query(HasilCluster).delete()
-    db.query(ZonaGulma).delete()
-    deleted_count = db.query(DataGulma).delete()
-    db.commit()
-
-    return {
-        "status": "success",
-        "message": f"Seluruh dataset ({deleted_count} titik) berhasil dihapus."
-    }
 
 @router.get("/points", response_model=List[WeedPointResponse])
 def get_weed_points(
