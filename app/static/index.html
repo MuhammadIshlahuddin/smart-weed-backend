@@ -81,9 +81,9 @@
           <h2 class="text-2xl font-bold text-slate-900">Input Data Observasi Gulma</h2>
           <p class="text-sm text-slate-500 mt-0.5">Unggah dataset titik sebaran gulma hasil pemetaan lapangan atau drone (CSV/Excel).</p>
         </div>
-        <button onclick="loadSample225()" class="inline-flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-lg shadow-sm transition">
-          <i data-lucide="database" class="w-3.5 h-3.5"></i>
-          <span>Muat Dataset Proposal (225 Titik)</span>
+        <button onclick="document.getElementById('csv-file-input').click()" class="inline-flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-lg shadow-sm transition">
+          <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+          <span>Upload Dataset</span>
         </button>
       </div>
 
@@ -123,7 +123,10 @@
             </span>
             <span class="text-sm text-slate-500"> atau seret file ke sini</span>
           </div>
-          <p class="text-xs text-slate-400">Mendukung format .csv atau .xlsx dengan kolom latitude, longitude, persentase_gulma.</p>
+          <p class="text-xs text-slate-400">
+            Mendukung format .csv atau .xlsx dengan kolom latitude, longitude, persentase_gulma.
+            <span onclick="loadSample225(); event.stopPropagation();" class="text-emerald-600 hover:text-emerald-800 underline font-semibold ml-1 cursor-pointer pointer-events-auto">Gunakan data sampel proposal (225 titik)</span>
+          </p>
         </div>
         <input id="csv-file-input" type="file" accept=".csv, .xlsx, .xls" class="hidden" onchange="handleFileUpload(event)">
       </div>
