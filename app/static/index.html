@@ -135,7 +135,7 @@
       <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
         <div class="px-5 py-3.5 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
           <h3 class="font-bold text-xs text-slate-700 uppercase tracking-wider">Inventaris Dataset Aktif</h3>
-          <span class="text-xs text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full font-semibold">Active Batch: #PROPOSAL_225</span>
+          <span id="active-batch-badge" class="text-xs text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full font-semibold">Active Batch: #PROPOSAL_225</span>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-left text-xs">
@@ -376,6 +376,7 @@
     let map = null;
     let geojsonLayer = null;
     let chartInstance = null;
+    let currentBatchId = null;
 
     function switchTab(tabId) {
       ['input', 'clustering', 'results', 'zones'].forEach(t => {
@@ -420,8 +421,11 @@
         }
 
         const data = await res.json();
-        appendLog(`[SUCCESS] File ${data.filename} berhasil diunggah (${data.valid_records} baris valid).`);
+        currentBatchId = data.batch_id;
+        appendLog(`[SUCCESS] File ${data.filename} berhasil diunggah (${data.valid_records} baris valid, batch #${currentBatchId}).`);
         document.getElementById('stat-points').innerText = data.valid_records;
+        const activeBadge = document.getElementById('active-batch-badge');
+        if (activeBadge) activeBadge.innerText = `Active Batch: #${data.batch_id}`;
 
         // Tambah ke tabel inventaris
         const tbody = document.getElementById('dataset-table-body');
@@ -445,7 +449,7 @@
         tbody.prepend(tr);
         lucide.createIcons();
 
-        alert(`Dataset ${data.filename} berhasil diunggah! ${data.valid_records} titik gulma siap dianalisis.`);
+        alert(`Dataset ${data.filename} berhasil diunggah! ${data.valid_records} titik gulma siap dianalisis (Batch: #${currentBatchId}).`);
       } catch (err) {
         appendLog(`[ERROR] Gagal unggah file: ${err.message}`);
         alert(`Gagal upload CSV/Excel: ${err.message}`);
@@ -458,13 +462,17 @@
         // 1. Simpan dataset sample ke database
         const uploadRes = await fetch('/api/v1/weeds/load-sample', { method: 'POST' });
         const uploadData = await uploadRes.json();
+        currentBatchId = uploadData.batch_id || 'default';
+        const activeBadge = document.getElementById('active-batch-badge');
+        if (activeBadge) activeBadge.innerText = `Active Batch: #${currentBatchId}`;
+        document.getElementById('stat-points').innerText = uploadData.valid_records;
         appendLog(`[SUCCESS] ${uploadData.message}`);
 
         // 2. Eksekusi clustering K-Means Scratch langsung
         const clusterRes = await fetch('/api/v1/clustering/execute', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({k: 3, engine: 'scratch', max_iter: 300, tolerance: 1e-6})
+          body: JSON.stringify({k: 3, engine: 'scratch', max_iter: 300, tolerance: 1e-6, batch_id: currentBatchId})
         });
         const clusterData = await clusterRes.json();
         appendLog(`[SUCCESS] K-Means K=3 selesai dalam ${clusterData.execution_time_ms.toFixed(2)} ms.`);
@@ -510,13 +518,27 @@
       const engine = document.getElementById('param-engine').value;
       appendLog(`[INFO] Menjalankan K-Means (${engine.toUpperCase()}) K=3...`);
       
+      const payload = {k: 3, engine: engine, max_iter: 300, tolerance: 1e-6};
+      if (currentBatchId) {
+        payload.batch_id = currentBatchId;
+      }
+
       try {
         const res = await fetch('/api/v1/clustering/execute', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({k: 3, engine: engine, max_iter: 300, tolerance: 1e-6})
+          body: JSON.stringify(payload)
         });
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.detail || "Gagal clustering");
+        }
         const data = await res.json();
+        if (data.batch_id) {
+          currentBatchId = data.batch_id;
+          const activeBadge = document.getElementById('active-batch-badge');
+          if (activeBadge) activeBadge.innerText = `Active Batch: #${data.batch_id}`;
+        }
         
         document.getElementById('exec-time-label').innerHTML = `Waktu Eksekusi: <strong>${data.execution_time_ms.toFixed(2)} ms</strong>`;
         document.getElementById('iter-count-label').innerHTML = `Iterasi: <strong>${data.iterations}x</strong>`;
@@ -527,13 +549,15 @@
         alert(`Clustering Berhasil! Waktu komputasi: ${data.execution_time_ms.toFixed(2)} ms`);
       } catch (err) {
         appendLog("[ERROR] Gagal eksekusi: " + err);
+        alert(`Gagal eksekusi clustering: ${err.message || err}`);
       }
     }
 
     async function runBenchmark5x() {
       appendLog("[INFO] Menjalankan Pengujian Waktu Komputasi 5x Ulangan (Bab 3.3.6)...");
       try {
-        const res = await fetch('/api/v1/clustering/benchmark?runs=5', { method: 'POST' });
+        const url = currentBatchId ? `/api/v1/clustering/benchmark?runs=5&batch_id=${encodeURIComponent(currentBatchId)}` : '/api/v1/clustering/benchmark?runs=5';
+        const res = await fetch(url, { method: 'POST' });
         const data = await res.json();
         
         appendLog("================ HASIL BENCHMARK 5x ================");
@@ -545,6 +569,7 @@
         alert(`Benchmark Selesai!\nRata-rata Scratch: ${data.average_scratch_ms} ms\nRata-rata Sklearn: ${data.average_sklearn_ms} ms`);
       } catch (err) {
         appendLog("[ERROR] Gagal benchmark: " + err);
+        alert(`Gagal benchmark: ${err.message || err}`);
       }
     }
 
@@ -558,16 +583,20 @@
 
     function initMap() {
       if (!map) {
-        // Koordinat tengah area penelitian proposal (Sidoarjo/Jawa Timur)
-        map = L.map('map').setView([-7.5136, 112.6918], 18);
+        map = L.map('map').setView([-7.5075, 112.6902], 18);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 20,
           attribution: '© OpenStreetMap contributors'
         }).addTo(map);
+      } else {
+        map.invalidateSize();
       }
 
+      const geoUrl = currentBatchId ? `/api/v1/spatial/geojson?batch_id=${encodeURIComponent(currentBatchId)}` : '/api/v1/spatial/geojson';
+      const summaryUrl = currentBatchId ? `/api/v1/spatial/zone-summary?batch_id=${encodeURIComponent(currentBatchId)}` : '/api/v1/spatial/zone-summary';
+
       // Ambil GeoJSON dari backend
-      fetch('/api/v1/spatial/geojson')
+      fetch(geoUrl)
         .then(r => r.json())
         .then(geoData => {
           if (geojsonLayer) map.removeLayer(geojsonLayer);
@@ -613,14 +642,14 @@
 
           if (geoData.features && geoData.features.length > 0) {
             try {
-              map.fitBounds(geojsonLayer.getBounds(), { padding: [20, 20] });
+              map.fitBounds(geojsonLayer.getBounds(), { padding: [30, 30] });
             } catch(e) {}
           }
         })
         .catch(err => console.log("Belum ada data GeoJSON:", err));
 
       // Load table data
-      fetch('/api/v1/spatial/zone-summary')
+      fetch(summaryUrl)
         .then(r => r.json())
         .then(rows => {
           const tbody = document.getElementById('zone-table-body');
@@ -642,6 +671,15 @@
             `;
             tbody.appendChild(tr);
           });
+
+          // Sync chart data with latest zone summary
+          if (rows && rows.length > 0) {
+            const chartData = rows.map(r => ({
+              zone: r.zone_name,
+              coverage: parseFloat(r.coverage_percentage) || 0
+            }));
+            initChart(chartData);
+          }
         });
     }
 
@@ -675,8 +713,28 @@
       });
     }
 
+    async function loadInitialDataset() {
+      try {
+        const res = await fetch('/api/v1/weeds/datasets');
+        if (res.ok) {
+          const datasets = await res.json();
+          if (datasets && datasets.length > 0) {
+            const latest = datasets[datasets.length - 1];
+            currentBatchId = latest.batch_id;
+            const activeBadge = document.getElementById('active-batch-badge');
+            if (activeBadge) activeBadge.innerText = `Active Batch: #${latest.batch_id}`;
+            const statPoints = document.getElementById('stat-points');
+            if (statPoints) statPoints.innerText = latest.total_points;
+          }
+        }
+      } catch (err) {
+        console.warn("Gagal memuat dataset awal:", err);
+      }
+    }
+
     // Auto load initial data & Drag-and-Drop listener
     window.addEventListener('DOMContentLoaded', () => {
+      loadInitialDataset();
       initChart();
 
       const dropZone = document.getElementById('drop-zone');

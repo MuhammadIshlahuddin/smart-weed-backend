@@ -21,7 +21,12 @@ def get_spatial_geojson(
     2. Poligon Convex Hull batas zona
     3. Titik centroid
     """
-    batch_filter = batch_id or "default"
+    target_batch = batch_id
+    if not target_batch:
+        latest = db.query(HasilCluster.batch_id).order_by(HasilCluster.id_cluster.desc()).first()
+        target_batch = latest[0] if (latest and latest[0]) else "default"
+
+    batch_filter = target_batch
 
     # Ambil hasil clustering
     cluster_records = (
@@ -81,7 +86,12 @@ def get_zone_summary_table(
     Menyajikan data tabel zonasi sesuai Gambar 3.10 (Halaman Peta Zona Gulma):
     Zone ID, Coordinates Centroid, Density Index/Coverage, Action Required.
     """
-    batch_filter = batch_id or "default"
+    target_batch = batch_id
+    if not target_batch:
+        latest = db.query(ZonaGulma.batch_id).order_by(ZonaGulma.id_zona.desc()).first()
+        target_batch = latest[0] if (latest and latest[0]) else "default"
+
+    batch_filter = target_batch
     zonas = db.query(ZonaGulma).filter(ZonaGulma.batch_id == batch_filter).all()
     if not zonas:
         return []

@@ -27,16 +27,21 @@ def execute_clustering(
     """
     Eksekusi algoritma K-Means (Engine Scratch / Sklearn) dan simpan hasil ke database.
     """
-    # 1. Ambil data titik gulma dari DB
-    query = db.query(DataGulma)
-    if req.batch_id:
-        query = query.filter(DataGulma.batch_id == req.batch_id)
-    
+    # 1. Tentukan target batch_id (gunakan yang diminta atau otomatis ambil batch terbaru yang diunggah)
+    target_batch = req.batch_id
+    if not target_batch:
+        latest = db.query(DataGulma.batch_id).order_by(DataGulma.id_gulma.desc()).first()
+        if latest and latest[0]:
+            target_batch = latest[0]
+        else:
+            target_batch = "default"
+
+    query = db.query(DataGulma).filter(DataGulma.batch_id == target_batch)
     weed_records = query.all()
     if not weed_records:
         raise HTTPException(
             status_code=404,
-            detail="Tidak ditemukan data gulma untuk diproses. Silakan upload dataset terlebih dahulu."
+            detail=f"Tidak ditemukan data gulma untuk batch '{target_batch}'. Silakan upload dataset terlebih dahulu."
         )
 
     points = [(float(r.latitude), float(r.longitude)) for r in weed_records]
@@ -67,7 +72,7 @@ def execute_clustering(
 
     # 3. Simpan Hasil ke Database (Tabel Hasil_Cluster & Zona_Gulma)
     # Hapus hasil clustering lama untuk batch_id terkait agar tidak duplikat
-    batch_filter = req.batch_id or "default"
+    batch_filter = target_batch
     db.query(HasilCluster).filter(HasilCluster.batch_id == batch_filter).delete()
     db.query(ZonaGulma).filter(ZonaGulma.batch_id == batch_filter).delete()
 
@@ -112,7 +117,7 @@ def execute_clustering(
     return {
         "status": "success",
         "engine": result["engine"],
-        "batch_id": req.batch_id,
+        "batch_id": target_batch,
         "total_points": len(points),
         "execution_time_ms": exec_time_ms,
         "iterations": result["iterations"],
