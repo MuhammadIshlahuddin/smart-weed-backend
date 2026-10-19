@@ -44,34 +44,51 @@ class KMeansSklearn:
             dist = float(np.linalg.norm(X[i] - c_pos))
             distances.append(dist)
 
-        # Hitung Coverage per klaster (Persamaan 3.4)
-        cluster_summaries = []
+        # Hitung Coverage per klaster (Persamaan 3.4) & Klasifikasi Zona (Proposal Bab 3.2.4 & Tabel 3.2)
+        raw_summaries = []
         for c_idx in range(self.k):
             count = int(np.sum(labels == c_idx))
             coverage_pct = round((count / n_samples) * 100, 2)
-
-            if coverage_pct < 20.0:
-                zone_name = "Rendah"
-                color = "#22C55E"
-                recom = "Routine Monitoring (Pengawasan rutin, perlakuan spot spraying minimal)"
-            elif 20.0 <= coverage_pct <= 40.0:
-                zone_name = "Sedang"
-                color = "#EAB308"
-                recom = "Targeted Control (Penyemprotan terarah dengan dosis sedang)"
-            else:
-                zone_name = "Tinggi"
-                color = "#EF4444"
-                recom = "Immediate Treatment (Penyemprotan intensif prioritas tinggi)"
-
-            cluster_summaries.append({
+            raw_summaries.append({
                 "cluster": c_idx + 1,
                 "centroid": {"latitude": float(centroids[c_idx][0]), "longitude": float(centroids[c_idx][1])},
                 "points_count": count,
                 "coverage": coverage_pct,
-                "zone": zone_name,
-                "color": color,
-                "recommendation": recom
             })
+
+        if self.k == 3:
+            sorted_by_cov = sorted(raw_summaries, key=lambda x: x["coverage"])
+            rank_meta = {
+                0: ("Rendah", "#22C55E", "Routine Monitoring (Pengawasan rutin, perlakuan spot spraying minimal)"),
+                1: ("Sedang", "#EAB308", "Targeted Control (Penyemprotan terarah dengan dosis sedang)"),
+                2: ("Tinggi", "#EF4444", "Immediate Treatment (Penyemprotan intensif prioritas tinggi)")
+            }
+            cluster_summaries_map = {}
+            for rank, item in enumerate(sorted_by_cov):
+                z_name, color, recom = rank_meta[rank]
+                cluster_summaries_map[item["cluster"]] = {
+                    **item,
+                    "zone": z_name,
+                    "color": color,
+                    "recommendation": recom
+                }
+            cluster_summaries = [cluster_summaries_map[c + 1] for c in range(self.k)]
+        else:
+            cluster_summaries = []
+            for item in raw_summaries:
+                cov = item["coverage"]
+                if cov < 20.0:
+                    z_name, color, recom = "Rendah", "#22C55E", "Routine Monitoring (Pengawasan rutin, perlakuan spot spraying minimal)"
+                elif 20.0 <= cov <= 40.0:
+                    z_name, color, recom = "Sedang", "#EAB308", "Targeted Control (Penyemprotan terarah dengan dosis sedang)"
+                else:
+                    z_name, color, recom = "Tinggi", "#EF4444", "Immediate Treatment (Penyemprotan intensif prioritas tinggi)"
+                cluster_summaries.append({
+                    **item,
+                    "zone": z_name,
+                    "color": color,
+                    "recommendation": recom
+                })
 
         return {
             "status": "success",
